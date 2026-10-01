@@ -41,6 +41,7 @@ const context = {
   Font: global.Font,
   Size: global.Size,
   DateFormatter: global.DateFormatter,
+  URLScheme: { forRunningScript: () => "scriptable:///run?scriptName=My%20Meter" },
 }
 vm.runInNewContext(`(async () => {\n${scriptSource}\n})()`, context, { filename: scriptPath })
 const widget = context.module.exports
@@ -71,9 +72,6 @@ function textValues(element) {
 }
 
 async function run() {
-  assert.ok(!scriptSource.includes("URLScheme.forRunningScript"))
-  assert.ok(!scriptSource.includes("widget.url"))
-
   const valid = widget.validateUsage(sample)
   assert.strictEqual(valid.schemaVersion, 1)
   assert.strictEqual(valid.fiveHour.remainingPercent, 72)
@@ -126,7 +124,11 @@ async function run() {
   for (const family of families) {
     const rendered = widget.buildWidget(family, { usage: valid, isCache: false }, "weekly", new Date(sample.sourceLastSuccessfulSync))
     assert.ok(rendered instanceof ListWidget)
-    assert.strictEqual(rendered.url, undefined)
+    const tap = new URL(rendered.url)
+    assert.strictEqual(tap.protocol, "scriptable:")
+    assert.strictEqual(tap.searchParams.get("scriptName"), "My Meter")
+    assert.strictEqual(tap.searchParams.get("family"), family)
+    assert.strictEqual(tap.searchParams.get("window"), "weekly")
   }
   for (const family of families) {
     for (const state of ["offline", "cached", "refreshing", "codexNotFound", "appServerUnavailable", "dataUnavailable", "error"]) {
@@ -154,7 +156,16 @@ async function run() {
 
   const circularEmpty = widget.buildWidget("accessoryCircular", { usage: null, isCache: false }, null)
   assert.deepStrictEqual(textValues(circularEmpty), ["C", "--"])
-  assert.strictEqual(circularEmpty.url, undefined)
+  assert.strictEqual(new URL(circularEmpty.url).searchParams.get("family"), "accessoryCircular")
+
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(widget.invocationOptions(
+    { runsInWidget: false, widgetFamily: null },
+    { queryParameters: { family: "accessoryCircular", window: "weekly" } }
+  ))), { family: "accessoryCircular", parameter: "weekly" })
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(widget.invocationOptions(
+    { runsInWidget: true, widgetFamily: "small" },
+    { widgetParameter: "fiveHour", queryParameters: { family: "medium", window: "weekly" } }
+  ))), { family: "small", parameter: "fiveHour" })
 
   for (const runsInWidget of [true, false]) {
     let alerts = 0

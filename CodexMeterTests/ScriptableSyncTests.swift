@@ -86,6 +86,16 @@ final class ScriptableSyncTests: XCTestCase {
         XCTAssertTrue(ScriptableExportDecision.shouldExport(previous: connected, current: same, force: true))
     }
 
+    func testSuccessfulSyncExportsNewTimestampEvenWhenQuotasAreUnchanged() {
+        let first = makeSnapshot()
+        var next = first
+        next.lastSuccessfulSync = first.lastSuccessfulSync.addingTimeInterval(60)
+        let previous = ScriptableExportFingerprint(snapshot: first, sourceStatus: .connected)
+        let current = ScriptableExportFingerprint(snapshot: next, sourceStatus: .connected)
+        XCTAssertTrue(ScriptableExportDecision.shouldExport(previous: previous, current: current, force: false))
+        XCTAssertFalse(ScriptableExportDecision.shouldExport(previous: current, current: current, force: false))
+    }
+
     func testWriterCreatesValidatedContractAndReplacesPreviousSnapshot() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

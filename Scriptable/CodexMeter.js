@@ -3,7 +3,7 @@
 // icon-color: yellow; icon-glyph: magic;
 // Codex Meter for Scriptable
 // Reads only CodexMeter/usage.json from Scriptable's iCloud Documents folder.
-// Widget version 1.2 — compatible with usage schema version 1.
+// Widget version 1.3 — compatible with usage schema version 1.
 
 const SCHEMA_VERSION = 1
 const REFRESH_MINUTES = 15
@@ -445,16 +445,33 @@ function previewMethodName(family) {
 }
 
 function buildWidget(family, loaded, parameter, now = new Date()) {
-  if (!loaded.usage) return noDataWidget(family)
-  const fresh = freshnessInfo(loaded.usage, loaded.isCache, now)
   let widget
-  switch (rendererName(family)) {
-  case "medium": widget = buildMedium(loaded.usage, fresh, now); break
-  case "accessoryRectangular": widget = buildAccessoryRectangular(loaded.usage, fresh, now); break
-  case "accessoryCircular": widget = buildAccessoryCircular(loaded.usage, fresh, parameter, now); break
-  default: widget = buildSmall(loaded.usage, fresh, now)
+  if (!loaded.usage) {
+    widget = noDataWidget(family)
+  } else {
+    const fresh = freshnessInfo(loaded.usage, loaded.isCache, now)
+    switch (rendererName(family)) {
+    case "medium": widget = buildMedium(loaded.usage, fresh, now); break
+    case "accessoryRectangular": widget = buildAccessoryRectangular(loaded.usage, fresh, now); break
+    case "accessoryCircular": widget = buildAccessoryCircular(loaded.usage, fresh, parameter, now); break
+    default: widget = buildSmall(loaded.usage, fresh, now)
+    }
   }
+  // Official Scriptable run URL follows the actual script name, even if renamed.
+  // Tapping opens Scriptable and rereads iCloud; it cannot force iOS to redraw.
+  const runURL = URLScheme.forRunningScript()
+  widget.url = `${runURL}${runURL.includes("?") ? "&" : "?"}family=${encodeURIComponent(rendererName(family))}&window=${encodeURIComponent(String(parameter || ""))}`
   return widget
+}
+
+function invocationOptions(configuration, parameters) {
+  const query = parameters.queryParameters || {}
+  return {
+    family: !configuration.runsInWidget && query.family
+      ? rendererName(query.family) : configuration.widgetFamily || "medium",
+    parameter: !configuration.runsInWidget && typeof query.window === "string"
+      ? query.window : parameters.widgetParameter,
+  }
 }
 
 async function main() {
@@ -463,8 +480,8 @@ async function main() {
   try { localManager = FileManager.local() } catch (_) {}
   try { icloudManager = FileManager.iCloud() } catch (_) {}
   const loaded = await loadUsage(icloudManager, localManager)
-  const family = config.widgetFamily || "medium"
-  const widget = buildWidget(family, loaded, args.widgetParameter)
+  const { family, parameter } = invocationOptions(config, args)
+  const widget = buildWidget(family, loaded, parameter)
   widget.refreshAfterDate = new Date(Date.now() + REFRESH_MINUTES * 60000)
   if (config.runsInWidget) {
     Script.setWidget(widget)
@@ -492,6 +509,7 @@ if (typeof FileManager === "undefined" && typeof module !== "undefined" && modul
     rendererName,
     previewMethodName,
     buildWidget,
+    invocationOptions,
   }
 } else {
   await main()

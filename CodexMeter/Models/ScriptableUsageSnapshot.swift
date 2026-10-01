@@ -93,11 +93,13 @@ struct ScriptableExportFingerprint: Equatable {
     let fiveHour: ScriptableUsageWindow?
     let weekly: ScriptableUsageWindow?
     let sourceStatus: String
+    let sourceLastSuccessfulSync: Date
 
     init(snapshot: UsageSnapshot, sourceStatus: ConnectionStatus) {
         fiveHour = snapshot.fiveHours.map(ScriptableUsageWindow.init)
         weekly = snapshot.weekly.map(ScriptableUsageWindow.init)
         self.sourceStatus = sourceStatus.scriptableValue
+        sourceLastSuccessfulSync = snapshot.lastSuccessfulSync
     }
 }
 

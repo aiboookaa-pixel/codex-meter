@@ -4,7 +4,7 @@
 
 ## 从旧版升级
 
-当前手机脚本版本：1.2（与 Mac 1.0.3 及 usage.json schemaVersion 1 兼容）。
+当前手机脚本版本：1.3（与 Mac 1.0.4 及 usage.json schemaVersion 1 兼容）。
 
 本次优化没有修改 `usage.json` 和 Mac 同步设置。只需用项目中的新版 `CodexMeter.js` 替换 Scriptable 里的同名脚本；桌面和锁屏小组件无需删除或重新添加。
 
@@ -32,13 +32,17 @@
 
 在 Scriptable App 中手动运行脚本会立即重新读取 iCloud 的 `usage.json`。
 
-新版脚本不再设置强制跳转链接，因此不会由脚本主动在点击时打开 Scriptable。Scriptable 本身不提供“点击后在桌面内立即执行脚本并刷新”的接口；小组件仍按 iOS 的调度读取最新 iCloud 文件。如果在 Scriptable 的小组件配置中设置了其他点击行为，该设置仍可能打开 Scriptable。
+新版支持点击小组件打开 Scriptable 并自动运行当前脚本，立即重新读取 iCloud 数据并展示预览，无需再点击运行按钮。脚本改名后仍有效；桌面小/中号、锁屏矩形/圆形均支持，预览保留原尺寸和 `weekly` 参数。锁屏可能需要先解锁。
+
+这不是“不跳转的桌面原地刷新”：手机只能读取已经同步到 iCloud 的快照，不能要求 Mac 立即联网获取额度，也不能强制桌面小组件马上重绘。
 
 ## 刷新说明
 
 脚本把 `refreshAfterDate` 设置为当前时间约 15 分钟后。它只是“最早建议刷新时间”，不是精确定时器；Widget 的实际刷新时机由 iOS / iPadOS 决定，系统不保证每 15 分钟刷新。
 
 如果必须立刻读取最新的 `usage.json`，请在 Scriptable App 中手动运行 `CodexMeter`。真正不打开 App 的点击刷新需要原生 iOS WidgetKit 小组件和 App Intent，不属于当前 Scriptable 方案。
+
+Mac 1.0.4 修复额度数字不变时遗漏最新成功检查时间的问题：每次真实同步成功都会更新快照时间；重复的相同快照和本地倒计时不会触发写入。Mac 休眠、离线或 iCloud 未完成传输时，点击不会伪造新数据。
 
 额度新鲜度以 `sourceLastSuccessfulSync` 为准。30 分钟后显示具体更新时间，2 小时后显示警告，6 小时后明确显示“数据可能已过期”。如果 iCloud 暂时不可用，脚本会显示最后一次有效缓存并标记“缓存”；没有任何有效数据时不会显示虚假的 `0%`。
 

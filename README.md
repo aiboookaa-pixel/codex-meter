@@ -83,7 +83,8 @@ Apple Developer 付费账户不是阅读、修改源码或本机构建的前提�
 - 手机新鲜度以 `sourceLastSuccessfulSync` 计算，不用文件导出时间冒充额度更新时间。
 - 超过 2 小时警告，超过 6 小时明确标记可能过期；重置结束显示等待 Mac 更新，不自动填满额度。
 - `refreshAfterDate` 是约 15 分钟后最早允许刷新的建议，不是精确定时器，实际由 iOS 决定。[Scriptable 官方说明](https://docs.scriptable.app/listwidget/#refreshafterdate)
-- Scriptable 没有“点击桌面组件后不跳转、立即原地刷新”的实现；需要最新文件时在 Scriptable 手动运行。
+- 点击手机组件会打开 Scriptable 并自动重读 iCloud、展示原尺寸预览，无需再点运行。脚本改名、锁屏圆形 `weekly` 参数均可保留。它不能强制桌面原地重绘，也不能远程要求 Mac 立即联网。
+- Mac 每次真实同步成功都会导出最新检查时间，即使额度数字未变；本地倒计时和完全相同的快照不会重复写入。
 
 ## 测试
 
@@ -96,7 +97,7 @@ node Scriptable/Tests/CodexMeter.test.cjs
 
 测试覆盖分类、百分比、倒计时、周期通知去重、缓存、协议错误、恢复逻辑、JSON 导出、授权目录及四种手机布局分支。手机测试使用 Scriptable API 模拟，不替代 iPhone 实机视觉和 iCloud 端到端验证。
 
-当前开源基线：Mac 1.0.3、Scriptable 1.2、JSON schema 1。30 项 XCTest 与手机脚本测试已在维护者的 Mac 上通过；该信息不是对所有客户端版本与所有 iPhone 的兼容保证。
+当前版本：Mac 1.0.4、Scriptable 1.3、JSON schema 1。31 项 XCTest 与手机脚本测试已在维护者的 Mac 上通过；该信息不是对所有客户端版本与所有 iPhone 的兼容保证。
 
 ## 代码结构
 
