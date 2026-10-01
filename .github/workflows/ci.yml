@@ -1,0 +1,35 @@
+name: Build and Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and test Mac app
+        run: >-
+          xcodebuild -project CodexMeter.xcodeproj -scheme CodexMeter
+          -configuration Debug -destination 'platform=macOS'
+          -derivedDataPath build test CODE_SIGNING_ALLOWED=NO
+  scriptable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: node Scriptable/Tests/CodexMeter.test.cjs
