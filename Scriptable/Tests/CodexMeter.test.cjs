@@ -81,13 +81,19 @@ async function run() {
   const resetUsage = { ...valid,
     fiveHour: { ...valid.fiveHour, resetAt: "2026-10-02T10:00:00Z" },
     weekly: { ...valid.weekly, resetAt: "2026-10-02T09:00:00Z" } }
-  assert.match(widget.nearestResetLabel(resetUsage, resetNow), /下次重置 W/)
-  assert.match(widget.nearestResetLabel({ ...resetUsage, weekly: null }, resetNow), /下次重置 5H/)
-  assert.match(widget.nearestResetLabel({ ...resetUsage, weekly: { ...resetUsage.weekly, resetAt: "2026-10-02T07:00:00Z" } }, resetNow), /下次重置 5H/)
-  assert.strictEqual(widget.nearestResetLabel({ fiveHour: null, weekly: null }, resetNow), "重置时间不可用")
-  assert.strictEqual(widget.nearestResetLabel(resetUsage, new Date("2026-10-02T11:00:00Z")), "等待 Mac 更新")
+  const gifted = { ...resetUsage, fullReset: { availableCount: 1, credits: [{ expiresAt: "2026-10-20T09:00:00Z" }] } }
+  assert.match(widget.giftExpiryLabel(gifted, resetNow), /赠送重置.*2026-10-20.*到期/)
+  assert.match(widget.giftExpiryLabel(resetUsage, resetNow), /当前不可用/)
+  assert.match(widget.giftExpiryLabel({ ...gifted, fullReset: { availableCount: 0 } }, resetNow), /暂无可用/)
+  assert.match(widget.giftExpiryLabel({ ...gifted, fullReset: { availableCount: 1, credits: [{}] } }, resetNow), /未提供/)
+  assert.match(widget.giftExpiryLabel(gifted, new Date("2026-10-21T00:00:00Z")), /已到期/)
+  assert.strictEqual(widget.validateUsage({ ...sample, fullReset: gifted.fullReset }).fullReset.availableCount, 1)
+  assert.throws(() => widget.validateUsage({ ...sample, fullReset: { credits: [{ expiresAt: "bad" }] } }))
   for (const family of ["small", "medium"]) {
-    assert.match(textValues(widget.buildWidget(family, { usage: resetUsage, isCache: false }, null, resetNow)).join(" "), /下次重置 W/)
+    const values = textValues(widget.buildWidget(family, { usage: gifted, isCache: false }, null, resetNow)).join(" ")
+    assert.match(values, /赠送重置.*2026-10-20/)
+    assert.match(values, /2026-10-02T10:00/)
+    assert.match(values, /2026-10-02T09:00/)
   }
 
   assert.throws(() => widget.validateUsage({ ...sample, schemaVersion: 2 }))

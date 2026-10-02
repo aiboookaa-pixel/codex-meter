@@ -46,6 +46,22 @@ final class ScriptableSyncTests: XCTestCase {
         XCTAssertEqual((object["fiveHour"] as? [String: Any])?["remainingPercent"] as? Int, 72)
     }
 
+    func testGiftExpiryExportAndChangesWithoutQuotaChanges() throws {
+        var snapshot = makeSnapshot()
+        snapshot.fullResetAvailableCount = 1
+        snapshot.fullResetCredits = [RateLimitResetCredit(grantedAt: 100, expiresAt: 200, status: "available", resetType: "codexRateLimits")]
+        let payload = ScriptableUsageSnapshot(snapshot: snapshot, sourceStatus: .connected, exportedAt: Date(timeIntervalSince1970: 1_789_304_293))
+        let data = try ScriptableJSONCoding.encoder().encode(payload)
+        XCTAssertEqual(try ScriptableJSONCoding.decoder().decode(ScriptableUsageSnapshot.self, from: data), payload)
+        XCTAssertEqual(payload.fullReset?.credits?.first?.expiresAt, Date(timeIntervalSince1970: 200))
+        let previous = ScriptableExportFingerprint(snapshot: snapshot, sourceStatus: .connected)
+        snapshot.fullResetCredits = [RateLimitResetCredit(grantedAt: 100, expiresAt: 300, status: "available", resetType: "codexRateLimits")]
+        XCTAssertNotEqual(previous, ScriptableExportFingerprint(snapshot: snapshot, sourceStatus: .connected))
+        let oldObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]).filter { $0.key != "fullReset" }
+        let oldData = try JSONSerialization.data(withJSONObject: oldObject)
+        XCTAssertNil(try ScriptableJSONCoding.decoder().decode(ScriptableUsageSnapshot.self, from: oldData).fullReset)
+    }
+
     func testMissingResetDateEncodesAsNull() throws {
         let snapshot = UsageSnapshot(
             fiveHours: UsageWindow(usedPercent: 28, durationMinutes: 300, resetsAt: nil),

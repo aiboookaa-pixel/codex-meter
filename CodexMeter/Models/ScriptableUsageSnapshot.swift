@@ -29,6 +29,22 @@ struct ScriptableUsageWindow: Codable, Equatable {
     }
 }
 
+struct ScriptableFullReset: Codable, Equatable {
+    struct Credit: Codable, Equatable {
+        let expiresAt: Date?
+    }
+    let availableCount: Int?
+    let credits: [Credit]?
+
+    static func from(_ snapshot: UsageSnapshot) -> Self? {
+        guard snapshot.fullResetAvailableCount != nil || snapshot.fullResetCredits != nil else { return nil }
+        return Self(availableCount: snapshot.fullResetAvailableCount,
+                    credits: snapshot.fullResetCredits.map { _ in
+                        snapshot.sortedAvailableResetCredits.map { Credit(expiresAt: $0.expiryDate) }
+                    })
+    }
+}
+
 struct ScriptableUsageSnapshot: Codable, Equatable {
     let schemaVersion: Int
     let fiveHour: ScriptableUsageWindow?
@@ -36,6 +52,7 @@ struct ScriptableUsageSnapshot: Codable, Equatable {
     let sourceLastSuccessfulSync: Date
     let exportedAt: Date
     let sourceStatus: String
+    let fullReset: ScriptableFullReset?
 
     init(snapshot: UsageSnapshot, sourceStatus: ConnectionStatus, exportedAt: Date = .now) {
         schemaVersion = 1
@@ -44,6 +61,7 @@ struct ScriptableUsageSnapshot: Codable, Equatable {
         sourceLastSuccessfulSync = snapshot.lastSuccessfulSync
         self.exportedAt = exportedAt
         self.sourceStatus = sourceStatus.scriptableValue
+        fullReset = ScriptableFullReset.from(snapshot)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -53,6 +71,7 @@ struct ScriptableUsageSnapshot: Codable, Equatable {
         case sourceLastSuccessfulSync
         case exportedAt
         case sourceStatus
+        case fullReset
     }
 
     func encode(to encoder: Encoder) throws {
@@ -71,6 +90,7 @@ struct ScriptableUsageSnapshot: Codable, Equatable {
         try container.encode(sourceLastSuccessfulSync, forKey: .sourceLastSuccessfulSync)
         try container.encode(exportedAt, forKey: .exportedAt)
         try container.encode(sourceStatus, forKey: .sourceStatus)
+        try container.encode(fullReset, forKey: .fullReset)
     }
 }
 
@@ -94,12 +114,14 @@ struct ScriptableExportFingerprint: Equatable {
     let weekly: ScriptableUsageWindow?
     let sourceStatus: String
     let sourceLastSuccessfulSync: Date
+    let fullReset: ScriptableFullReset?
 
     init(snapshot: UsageSnapshot, sourceStatus: ConnectionStatus) {
         fiveHour = snapshot.fiveHours.map(ScriptableUsageWindow.init)
         weekly = snapshot.weekly.map(ScriptableUsageWindow.init)
         self.sourceStatus = sourceStatus.scriptableValue
         sourceLastSuccessfulSync = snapshot.lastSuccessfulSync
+        fullReset = ScriptableFullReset.from(snapshot)
     }
 }
 
