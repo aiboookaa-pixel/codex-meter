@@ -86,6 +86,24 @@ async function run() {
   const live = await widget.loadUsage(new MemoryFileManager({ [dataFile]: JSON.stringify(sample) }), new MemoryFileManager())
   assert.strictEqual(live.isCache, false)
 
+  const newer = { ...sample, sourceLastSuccessfulSync: "2026-10-02T08:01:00Z", exportedAt: "2026-10-02T08:01:01Z" }
+  const olderCloud = { ...sample, sourceLastSuccessfulSync: "2026-10-02T08:00:00Z", exportedAt: "2026-10-02T08:00:01Z" }
+  const newestCache = new MemoryFileManager({ [cacheFile]: JSON.stringify(newer) })
+  const lagging = await widget.loadUsage(new MemoryFileManager({ [dataFile]: JSON.stringify(olderCloud) }), newestCache)
+  assert.strictEqual(lagging.usage.sourceLastSuccessfulSync, newer.sourceLastSuccessfulSync)
+  assert.strictEqual(lagging.isCache, true)
+  assert.strictEqual(lagging.error, "lagging")
+  assert.strictEqual(JSON.parse(newestCache.files[cacheFile]).sourceLastSuccessfulSync, newer.sourceLastSuccessfulSync)
+  assert.match(widget.diagnosticMessage(lagging), /iCloud.*较旧/)
+  const newerState = { ...newer, exportedAt: "2026-10-02T08:02:00Z", sourceStatus: "offline" }
+  const stateUpdate = await widget.loadUsage(new MemoryFileManager({ [dataFile]: JSON.stringify(newerState) }), newestCache)
+  assert.strictEqual(stateUpdate.usage.sourceStatus, "offline")
+  assert.strictEqual(stateUpdate.isCache, false)
+  const freshSource = { ...newer, sourceLastSuccessfulSync: "2026-10-02T08:03:00Z", exportedAt: "2026-10-02T08:03:01Z" }
+  const lateExport = { ...olderCloud, exportedAt: "2026-10-02T08:04:00Z" }
+  const sourceWins = await widget.loadUsage(new MemoryFileManager({ [dataFile]: JSON.stringify(freshSource) }), new MemoryFileManager({ [cacheFile]: JSON.stringify(lateExport) }))
+  assert.strictEqual(sourceWins.usage.sourceLastSuccessfulSync, freshSource.sourceLastSuccessfulSync)
+
   const missing = await widget.loadUsage(new MemoryFileManager(), new MemoryFileManager())
   assert.strictEqual(missing.usage, null)
 
@@ -176,7 +194,7 @@ async function run() {
       FileManager: { iCloud() { throw new Error("unavailable") }, local() { return new MemoryFileManager() } },
       config: { runsInWidget, widgetFamily: "medium" }, args: {},
       Alert: class { addAction() {} async presentAlert() { alerts += 1 } },
-      Script: { setWidget() { widgets += 1 }, complete() { completed += 1 } },
+      Script: { setWidget(value) { widgets += 1; assert.strictEqual(value.refreshAfterDate, null) }, complete() { completed += 1 } },
     }
     await vm.runInNewContext(`(async () => {\n${scriptSource}\n})()`, execution)
     assert.strictEqual(alerts, runsInWidget ? 0 : 1)

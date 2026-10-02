@@ -3,10 +3,9 @@
 // icon-color: yellow; icon-glyph: magic;
 // Codex Meter for Scriptable
 // Reads only CodexMeter/usage.json from Scriptable's iCloud Documents folder.
-// Widget version 1.3 — compatible with usage schema version 1.
+// Widget version 1.4 — compatible with usage schema version 1.
 
 const SCHEMA_VERSION = 1
-const REFRESH_MINUTES = 15
 const DATA_FOLDER = "CodexMeter"
 const DATA_FILE = "usage.json"
 const CACHE_FILE = "last-valid-usage.json"
@@ -82,7 +81,16 @@ function saveCachedUsage(localManager, usage) {
   }
 }
 
+function snapshotIsNewer(candidate, reference) {
+  const sourceDifference = new Date(candidate.sourceLastSuccessfulSync).getTime()
+    - new Date(reference.sourceLastSuccessfulSync).getTime()
+  if (sourceDifference !== 0) return sourceDifference > 0
+  // A later export can carry a new offline/connected state for the same data.
+  return new Date(candidate.exportedAt).getTime() > new Date(reference.exportedAt).getTime()
+}
+
 async function loadUsage(icloudManager, localManager) {
+  const cached = readCachedUsage(localManager)
   let stage = "icloud"
   try {
     const dataFolder = icloudManager.joinPath(icloudManager.documentsDirectory(), DATA_FOLDER)
@@ -95,10 +103,13 @@ async function loadUsage(icloudManager, localManager) {
     const content = icloudManager.readString(dataFile)
     stage = "invalid"
     const usage = validateUsage(JSON.parse(content))
+    if (cached && snapshotIsNewer(cached, usage)) {
+      // iCloud may still expose an earlier version. Never roll valid data back.
+      return { usage: cached, isCache: true, error: "lagging" }
+    }
     saveCachedUsage(localManager, usage)
     return { usage, isCache: false, error: null }
   } catch (error) {
-    const cached = readCachedUsage(localManager)
     const code = error?.message === "unsupported schemaVersion" ? "schema" : stage
     return { usage: cached, isCache: cached !== null, error: code }
   }
@@ -112,6 +123,7 @@ function diagnosticMessage(loaded) {
     invalid: "额度文件格式不完整或字段无效。请在 Mac 点击立即同步，重新生成有效数据。",
     schema: "额度文件版本不受支持。请更新 CodexMeter 脚本。",
     icloud: "无法访问 Scriptable iCloud 目录。请确认 iCloud Drive 和 Scriptable 的 iCloud 开关已开启。",
+    lagging: "iCloud 返回了较旧的快照，正在保留手机上更新的有效缓存。请等待云端同步完成后再点击刷新；刷新不会强制 Mac 或 iCloud 立即更新。",
   }
   return `${reasons[loaded.error] || "同步暂时不可用，请稍后重试。"}\n\n${loaded.isCache ? "正在保留上次有效缓存，不代表实时额度。" : "尚无有效缓存，不会显示虚假额度。"}`
 }
@@ -482,7 +494,9 @@ async function main() {
   const loaded = await loadUsage(icloudManager, localManager)
   const { family, parameter } = invocationOptions(config, args)
   const widget = buildWidget(family, loaded, parameter)
-  widget.refreshAfterDate = new Date(Date.now() + REFRESH_MINUTES * 60000)
+  // Use the official default policy: no extra 15-minute floor, no polling hack.
+  // iOS still determines the actual execution time; this is not realtime push.
+  widget.refreshAfterDate = null
   if (config.runsInWidget) {
     Script.setWidget(widget)
   } else {
