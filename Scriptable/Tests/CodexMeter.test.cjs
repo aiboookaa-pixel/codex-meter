@@ -77,6 +77,19 @@ async function run() {
   assert.strictEqual(valid.fiveHour.remainingPercent, 72)
   assert.strictEqual(valid.weekly.remainingPercent, 81)
 
+  const resetNow = new Date("2026-10-02T08:00:00Z")
+  const resetUsage = { ...valid,
+    fiveHour: { ...valid.fiveHour, resetAt: "2026-10-02T10:00:00Z" },
+    weekly: { ...valid.weekly, resetAt: "2026-10-02T09:00:00Z" } }
+  assert.match(widget.nearestResetLabel(resetUsage, resetNow), /下次重置 W/)
+  assert.match(widget.nearestResetLabel({ ...resetUsage, weekly: null }, resetNow), /下次重置 5H/)
+  assert.match(widget.nearestResetLabel({ ...resetUsage, weekly: { ...resetUsage.weekly, resetAt: "2026-10-02T07:00:00Z" } }, resetNow), /下次重置 5H/)
+  assert.strictEqual(widget.nearestResetLabel({ fiveHour: null, weekly: null }, resetNow), "重置时间不可用")
+  assert.strictEqual(widget.nearestResetLabel(resetUsage, new Date("2026-10-02T11:00:00Z")), "等待 Mac 更新")
+  for (const family of ["small", "medium"]) {
+    assert.match(textValues(widget.buildWidget(family, { usage: resetUsage, isCache: false }, null, resetNow)).join(" "), /下次重置 W/)
+  }
+
   assert.throws(() => widget.validateUsage({ ...sample, schemaVersion: 2 }))
   assert.throws(() => widget.validateUsage({ ...sample, sourceLastSuccessfulSync: "bad" }))
   assert.doesNotThrow(() => widget.validateUsage({ ...sample, fiveHour: null, weekly: null }))

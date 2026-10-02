@@ -3,7 +3,7 @@
 // icon-color: yellow; icon-glyph: magic;
 // Codex Meter for Scriptable
 // Reads only CodexMeter/usage.json from Scriptable's iCloud Documents folder.
-// Widget version 1.4 — compatible with usage schema version 1.
+// Widget version 1.4.1 — compatible with usage schema version 1.
 
 const SCHEMA_VERSION = 1
 const DATA_FOLDER = "CodexMeter"
@@ -214,6 +214,15 @@ function resetDetailLabel(resetAt, now = new Date()) {
   return absolute ? `${relative} · ${absolute}` : relative
 }
 
+function nearestResetLabel(usage, now = new Date()) {
+  const candidates = [["5H", usage.fiveHour], ["W", usage.weekly]]
+    .filter(([, window]) => window && validISODate(window.resetAt))
+    .map(([title, window]) => ({ title, resetAt: window.resetAt, time: new Date(window.resetAt).getTime() }))
+  const next = candidates.filter(value => value.time > now.getTime()).sort((a, b) => a.time - b.time)[0]
+  if (!next) return candidates.length ? "等待 Mac 更新" : "重置时间不可用"
+  return `下次重置 ${next.title} · ${absoluteResetLabel(next.resetAt, now)}`
+}
+
 function resetRemaining(resetAt, now = new Date()) {
   if (!resetAt) return { expired: false, seconds: null }
   const seconds = Math.floor((new Date(resetAt).getTime() - now.getTime()) / 1000)
@@ -373,6 +382,8 @@ function buildMedium(usage, freshness, now) {
   quotas.addSpacer(18)
   addQuotaColumn(quotas, "每周", usage.weekly, colors.blue, 112, colors, now)
   widget.addSpacer()
+  addText(widget, nearestResetLabel(usage, now), Font.systemFont(9), colors.secondary)
+  widget.addSpacer(2)
   addText(widget, freshness.compactText, Font.systemFont(10), freshnessColor(freshness, colors))
   return widget
 }
@@ -399,6 +410,8 @@ function buildSmall(usage, freshness, now) {
   addText(week, usage.weekly ? `${usage.weekly.remainingPercent}%` : "--", Font.boldSystemFont(24), usage.weekly ? colors.blue : colors.secondary)
   addText(week, usage.weekly ? compactResetLabel(usage.weekly.resetAt, now) : "不可用", Font.systemFont(9), colors.secondary)
   widget.addSpacer()
+  addText(widget, nearestResetLabel(usage, now), Font.systemFont(9), colors.secondary)
+  widget.addSpacer(2)
   addText(widget, freshness.compactText, Font.systemFont(9), freshnessColor(freshness, colors), 2)
   return widget
 }
@@ -413,7 +426,7 @@ function buildAccessoryRectangular(usage, freshness, now) {
   const five = usage.fiveHour ? `5H ${usage.fiveHour.remainingPercent}%` : "5H --"
   const week = usage.weekly ? `W ${usage.weekly.remainingPercent}%` : "W --"
   addText(widget, `${five} · ${week}`, Font.boldSystemFont(14), colors.primary)
-  const reset = freshness.level !== "fresh" ? freshness.compactText : usage.fiveHour ? resetLabel(usage.fiveHour.resetAt, now) : "5H 当前不可用"
+  const reset = freshness.level !== "fresh" ? freshness.compactText : nearestResetLabel(usage, now)
   addText(widget, reset, Font.systemFont(9), freshnessColor(freshness, colors))
   return widget
 }
@@ -520,6 +533,7 @@ if (typeof FileManager === "undefined" && typeof module !== "undefined" && modul
     freshnessInfo,
     resetLabel,
     resetDetailLabel,
+    nearestResetLabel,
     rendererName,
     previewMethodName,
     buildWidget,
